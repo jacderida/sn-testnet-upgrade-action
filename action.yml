@@ -27,10 +27,15 @@ inputs:
       version.
   interval:
     description: The interval to apply between each node upgrade. Units are ms. The default is 200.
+  network-name:
+    description: The name of the network to upgrade
+    required: true
   safenode-version:
     description: >
       The safenode version to upgrade to. If not supplied, `testnet-deploy` will use the latest
       version.
+  safenode-manager-version:
+    description: The safenode-manager version to upgrade to
   sn-auditor-version:
     description: >
       The auditor version to upgrade to. If not supplied, `testnet-deploy` will use the latest
@@ -38,8 +43,9 @@ inputs:
   ssh-secret-key:
     description: SSH key that Ansible will use to connect to the node VMs.
     required: true
-  testnet-name:
-    description: SSH key that Ansible will use to connect to the node VMs.
+  target:
+    description: The upgrade target. Valid values are "safenode" or "safenode-manager".
+    default: safenode
     required: true
   testnet-deploy-branch:
     description: >
@@ -99,6 +105,7 @@ runs:
         echo "TERRAFORM_STATE_BUCKET_NAME=${{ env.TERRAFORM_STATE_BUCKET_NAME }}" >> .env
 
     - name: upgrade network
+      if: inputs.target == 'safenode'
       env:
         ANSIBLE_FORKS: ${{ inputs.ansible-forks }}
         AWS_DEFAULT_REGION: ${{ inputs.aws-region }}
@@ -109,7 +116,6 @@ runs:
         # The auditor argument won't be used for now. It is not available on the `upgrade` command
         # yet, and the auditor upgrade could well be a separate command.
         SN_AUDITOR_VERSION: ${{ inputs.sn-auditor-version }}
-        UPLOADER_VM_COUNT: ${{ inputs.uploader-vm-count }}
       shell: bash
       run: |
         set -e
@@ -121,6 +127,23 @@ runs:
         [[ -n $FAUCET_VERSION ]] && command="$command --faucet-version $FAUCET_VERSION "
         [[ -n $INTERVAL ]] && command="$command --interval $INTERVAL "
         [[ -n $SAFENODE_VERSION ]] && command="$command --safenode-version $SAFENODE_VERSION "
+
+        echo "Will run testnet-deploy with: $command"
+        eval $command
+
+    - name: upgrade node manager
+      if: inputs.target == 'safenode-manager'
+      env:
+        NETWORK_NAME: ${{ inputs.network-name }}
+        SAFENODE_MANAGER_VERSION: ${{ inputs.safenode-manager-version }}
+      shell: bash
+      run: |
+        set -e
+
+        cd sn-testnet-deploy
+
+        command="cargo run -- upgrade-node-manager --name $NETWORK_NAME "
+        [[ -n $SAFENODE_MANAGER_VERSION ]] && command="$command --version $SAFENODE_MANAGER_VERSION "
 
         echo "Will run testnet-deploy with: $command"
         eval $command
