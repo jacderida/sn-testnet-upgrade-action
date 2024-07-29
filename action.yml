@@ -8,6 +8,8 @@ inputs:
   ansible-vault-password:
     description: Password for Ansible vault
     required: true
+  ansible-verbose:
+    description: Set to true to run Ansible with its most verbose output
   aws-access-key-id:
     description: AWS access key ID
     required: true
@@ -108,6 +110,7 @@ runs:
       if: inputs.target == 'safenode'
       env:
         ANSIBLE_FORKS: ${{ inputs.ansible-forks }}
+        ANSIBLE_VERBOSE: ${{ inputs.ansible-verbose }}
         AWS_DEFAULT_REGION: ${{ inputs.aws-region }}
         FAUCET_VERSION: ${{ inputs.faucet-version }}
         INTERVAL: ${{ inputs.interval }}
@@ -123,6 +126,7 @@ runs:
         cd sn-testnet-deploy
 
         command="cargo run -- upgrade --name $NETWORK_NAME "
+        [[ $ANSIBLE_VERBOSE == "true" ]] && command="$command --ansible-verbose "
         [[ -n $ANSIBLE_FORKS ]] && command="$command --forks $ANSIBLE_FORKS "
         [[ -n $FAUCET_VERSION ]] && command="$command --faucet-version $FAUCET_VERSION "
         [[ -n $INTERVAL ]] && command="$command --interval $INTERVAL "
