@@ -20,6 +20,10 @@ inputs:
     description: AWS region
     default: eu-west-2
     required: true
+  custom-inventory:
+    description: >
+      Run the upgrade against particular VMs in the environment.
+      Should be a comma-separated list.
   do-token:
     description: Digital Ocean Authorization token
     required: true
@@ -112,6 +116,7 @@ runs:
         ANSIBLE_FORKS: ${{ inputs.ansible-forks }}
         ANSIBLE_VERBOSE: ${{ inputs.ansible-verbose }}
         AWS_DEFAULT_REGION: ${{ inputs.aws-region }}
+        CUSTOM_INVENTORY: ${{ inputs.custom-inventory }}
         FAUCET_VERSION: ${{ inputs.faucet-version }}
         INTERVAL: ${{ inputs.interval }}
         NETWORK_NAME: ${{ inputs.network-name }}
@@ -131,6 +136,13 @@ runs:
         [[ -n $FAUCET_VERSION ]] && command="$command --faucet-version $FAUCET_VERSION "
         [[ -n $INTERVAL ]] && command="$command --interval $INTERVAL "
         [[ -n $SAFENODE_VERSION ]] && command="$command --safenode-version $SAFENODE_VERSION "
+
+        if [[ -n $CUSTOM_INVENTORY ]]; then
+          IFS=',' read -ra VM_NAMES <<< "$CUSTOM_INVENTORY"
+          for vm_name in "${VM_NAMES[@]}"; do
+            command="$command --custom-inventory $vm_name"
+          done
+        fi
 
         echo "Will run testnet-deploy with: $command"
         eval $command
