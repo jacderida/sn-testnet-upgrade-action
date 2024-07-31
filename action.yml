@@ -50,7 +50,7 @@ inputs:
     description: SSH key that Ansible will use to connect to the node VMs.
     required: true
   target:
-    description: The upgrade target. Valid values are "safenode" or "safenode-manager".
+    description: The upgrade target. Valid values are "safenode", "safenode-manager" or "telegraf".
     default: safenode
     required: true
   testnet-deploy-branch:
@@ -160,6 +160,25 @@ runs:
 
         command="cargo run -- upgrade-node-manager --name $NETWORK_NAME "
         [[ -n $SAFENODE_MANAGER_VERSION ]] && command="$command --version $SAFENODE_MANAGER_VERSION "
+
+        echo "Will run testnet-deploy with: $command"
+        eval $command
+
+    - name: upgrade telegraf
+      if: inputs.target == 'telegraf'
+      env:
+        ANSIBLE_FORKS: ${{ inputs.ansible-forks }}
+        ANSIBLE_VERBOSE: ${{ inputs.ansible-verbose }}
+        NETWORK_NAME: ${{ inputs.network-name }}
+      shell: bash
+      run: |
+        set -e
+
+        cd sn-testnet-deploy
+
+        command="cargo run -- upgrade-telegraf --name $NETWORK_NAME "
+        [[ $ANSIBLE_VERBOSE == "true" ]] && command="$command --ansible-verbose "
+        [[ -n $ANSIBLE_FORKS ]] && command="$command --forks $ANSIBLE_FORKS "
 
         echo "Will run testnet-deploy with: $command"
         eval $command
