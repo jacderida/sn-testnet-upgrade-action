@@ -5,28 +5,12 @@ inputs:
     description: >
       The number of forks to use with Ansible. A network should be upgraded gradually, so this
       should be small. The default used by testnet-deploy is 2.
-  ansible-vault-password:
-    description: Password for Ansible vault
-    required: true
   ansible-verbose:
     description: Set to true to run Ansible with its most verbose output
-  aws-access-key-id:
-    description: AWS access key ID
-    required: true
-  aws-access-key-secret:
-    description: AWS access key
-    required: true
-  aws-region:
-    description: AWS region
-    default: eu-west-2
-    required: true
   custom-inventory:
     description: >
       Run the upgrade against particular VMs in the environment.
       Should be a comma-separated list.
-  do-token:
-    description: Digital Ocean Authorization token
-    required: true
   faucet-version:
     description: >
       The faucet version to upgrade to. If not supplied, `testnet-deploy` will use the latest
@@ -46,76 +30,19 @@ inputs:
     description: >
       The auditor version to upgrade to. If not supplied, `testnet-deploy` will use the latest
       version.
-  ssh-secret-key:
-    description: SSH key that Ansible will use to connect to the node VMs.
-    required: true
   target:
     description: The upgrade target. Valid values are "safenode" or "safenode-manager".
     default: safenode
     required: true
-  testnet-deploy-branch:
-    description: >
-      The branch for the sn-testnet-deploy repository. Enables using forks to test changes for
-      testnet-deploy.
-    default: main
-  testnet-deploy-user:
-    description: >
-      The user or organisation for the sn-testnet-deploy repository. Enables using forks to test
-      changes for testnet-deploy.
-    default: maidsafe
 
 runs:
   using: composite
   steps:
-    - name: install tools
-      shell: bash
-      run: |
-        sudo apt-get update -y
-        # There is some issue with the latest version of Ansible not correctly
-        # reading the Digital Ocean token from environment variables, so just
-        # pin to this version for now.
-        pip install --user ansible==8.2.0
-        pip install --user boto3
-        sudo apt-get install jq -y
-    - name: clone testnet-deploy and set it up for use
-      shell: bash
-      env:
-        AWS_ACCESS_KEY_ID: ${{ inputs.aws-access-key-id }}
-        AWS_DEFAULT_REGION: ${{ inputs.aws-region }}
-        AWS_SECRET_ACCESS_KEY: ${{ inputs.aws-access-key-secret }}
-        DO_PAT: ${{ inputs.do-token }}
-        TERRAFORM_STATE_BUCKET_NAME: maidsafe-org-infra-tfstate
-        TESTNET_DEPLOY_BRANCH: ${{ inputs.testnet-deploy-branch }}
-        TESTNET_DEPLOY_USER: ${{ inputs.testnet-deploy-user }}
-      run: |
-        set -e
-
-        git clone --quiet --single-branch --depth 1 \
-          --branch $TESTNET_DEPLOY_BRANCH https://github.com/$TESTNET_DEPLOY_USER/sn-testnet-deploy
-
-        mkdir ~/.ssh
-        echo "${{ inputs.ssh-secret-key }}" >> ~/.ssh/id_rsa
-        chmod 0400 ~/.ssh/id_rsa
-        ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
-
-        mkdir ~/.ansible
-        echo "${{ inputs.ansible-vault-password }}" >> ~/.ansible/vault-password
-
-        cd sn-testnet-deploy
-        echo "ANSIBLE_VAULT_PASSWORD_PATH=/home/runner/.ansible/vault-password" >> .env
-        echo "AWS_ACCESS_KEY_ID=${{ env.AWS_ACCESS_KEY_ID }}" >> .env
-        echo "AWS_DEFAULT_REGION=${{ env.AWS_DEFAULT_REGION }}" >> .env
-        echo "AWS_SECRET_ACCESS_KEY=${{ env.AWS_SECRET_ACCESS_KEY }}" >> .env
-        echo "DO_PAT=${{ env.DO_PAT }}" >> .env
-        echo "SSH_KEY_PATH=/home/runner/.ssh/id_rsa" >> .env
-        echo "TERRAFORM_STATE_BUCKET_NAME=${{ env.TERRAFORM_STATE_BUCKET_NAME }}" >> .env
-
     - name: upgrade network
       if: inputs.target == 'safenode'
       env:
         ANSIBLE_FORKS: ${{ inputs.ansible-forks }}
         ANSIBLE_VERBOSE: ${{ inputs.ansible-verbose }}
-        AWS_DEFAULT_REGION: ${{ inputs.aws-region }}
         CUSTOM_INVENTORY: ${{ inputs.custom-inventory }}
         FAUCET_VERSION: ${{ inputs.faucet-version }}
         INTERVAL: ${{ inputs.interval }}
@@ -130,7 +57,7 @@ runs:
 
         cd sn-testnet-deploy
 
-        command="cargo run -- upgrade --name $NETWORK_NAME "
+        command="testnet-deploy upgrade --name $NETWORK_NAME "
         [[ $ANSIBLE_VERBOSE == "true" ]] && command="$command --ansible-verbose "
         [[ -n $ANSIBLE_FORKS ]] && command="$command --forks $ANSIBLE_FORKS "
         [[ -n $FAUCET_VERSION ]] && command="$command --faucet-version $FAUCET_VERSION "
@@ -158,7 +85,7 @@ runs:
 
         cd sn-testnet-deploy
 
-        command="cargo run -- upgrade-node-manager --name $NETWORK_NAME "
+        command="testnet-deploy upgrade-node-manager --name $NETWORK_NAME "
         [[ -n $SAFENODE_MANAGER_VERSION ]] && command="$command --version $SAFENODE_MANAGER_VERSION "
 
         echo "Will run testnet-deploy with: $command"
